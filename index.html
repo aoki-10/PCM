@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>PCMプロフェッショナル管理マスター</title>
+    
+    <!-- iPhone PWA 設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PCM管理">
+    <link rel="apple-touch-icon" href="image_dc377b.png">
+    <link rel="icon" type="image/png" href="image_dc377b.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --ios-blue: #007AFF;
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+        body { 
+            font-family: 'Noto Sans JP', sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+            background-color: #f8fafc;
+            color: #1e293b;
+            user-select: none;
+            overflow-x: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        main {
+            height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-top: var(--safe-top);
+            padding-bottom: calc(120px + var(--safe-bottom));
+        }
+        .tab-active { color: var(--ios-blue) !important; font-weight: 900 !important; }
+        .tab-active::after { content: ''; position: absolute; bottom: 10px; width: 4px; height: 4px; background: var(--ios-blue); border-radius: 50%; }
+        
+        .hidden { display: none !important; }
+        .section { animation: ios-fade 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes ios-fade { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        
+        .q-card { border: 1px solid #e2e8f0; transition: all 0.3s; border-radius: 2rem; background: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02); }
+        .q-card.answered { border: 2px solid var(--ios-blue); background-color: #f0f7ff; }
+        
+        .base-tile { transition: all 0.2s; border: 1px solid #e2e8f0; aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 2rem; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+        .base-tile:active { transform: scale(0.92); background-color: #f1f5f9; }
+        
+        .custom-modal-overlay { background-color: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); }
+        
+        .ai-progress-bar { height: 8px; border-radius: 4px; background: #e2e8f0; overflow: hidden; width: 100%; margin-top: 8px; }
+        .ai-progress-fill { height: 100%; width: 0%; background: var(--ios-blue) !important; transition: width 0.4s ease; }
+        
+        .category-card { transition: all 0.2s; border: 1px solid #e2e8f0; background: white; border-radius: 1.5rem; padding: 1.25rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .category-card:active { transform: scale(0.95); background-color: #f8fafc; }
+        
+        .report-text { font-size: 16px; line-height: 1.9; letter-spacing: 0.01em; color: #334155; }
+        .report-text p { margin-bottom: 1.5rem; }
+
+        ::-webkit-scrollbar { display: none; }
+        .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- 通知トースト -->
+    <div id="toast" class="fixed top-0 left-0 right-0 z-[300] hidden bg-slate-800/95 backdrop-blur-md text-white px-6 py-4 pt-14 shadow-2xl text-sm font-bold transition-all text-center rounded-b-3xl"></div>
+
+    <header class="bg-white/80 backdrop-blur-xl fixed top-0 w-full z-40 px-6 pt-14 pb-4 flex justify-between items-center border-b border-slate-100 shadow-sm">
+        <h1 class="text-xl font-black text-slate-800 tracking-tighter">PCM Pro <span class="text-blue-600 font-black">管理マスター</span></h1>
+        <div id="status-badge" class="text-[10px] bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-black uppercase tracking-widest border border-blue-100 italic">Advanced Coaching</div>
+    </header>
+
+    <main id="scroll-container" class="max-w-md mx-auto px-5 pt-32">
+        <!-- セクション 1: 解説 -->
+        <div id="section-info" class="section">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-black text-slate-800 tracking-tight font-black">タイプ別マスターガイド</h2>
+                <button onclick="window.toggleEditInfo()" id="edit-info-btn" class="text-xs text-blue-600 font-bold px-4 py-2 bg-blue-50 rounded-full shadow-sm active:scale-95 transition-all">編集モード</button>
+            </div>
+            <div id="types-info-list" class="space-y-6"></div>
+            <div id="save-info-container" class="hidden mt-8">
+                <button onclick="window.saveEditedInfo()" class="w-full bg-blue-600 text-white py-5 rounded-3xl font-black shadow-xl active:scale-95 transition-all">解説内容を保存</button>
+            </div>
+        </div>
+
+        <!-- セクション 2: 診断 -->
+        <div id="section-entry" class="section hidden">
+            <div class="bg-slate-200/50 p-1.5 rounded-[2rem] flex mb-8 shadow-inner">
+                <button onclick="window.toggleEntryMode('diag')" id="btn-mode-diag" class="flex-1 py-3.5 rounded-[1.6rem] bg-white shadow-md font-black text-slate-800 text-sm transition-all">高精度診断</button>
+                <button onclick="window.toggleEntryMode('manual')" id="btn-mode-manual" class="flex-1 py-3.5 rounded-[1.6rem] font-black text-slate-500 text-sm transition-all">手動入力</button>
+            </div>
+            <div class="mb-8 bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                <label class="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest font-black">診断対象者の氏名</label>
+                <input type="text" id="user-name" placeholder="お名前を入力してください" class="w-full p-2 border-b-2 border-slate-100 focus:border-blue-500 outline-none text-2xl font-black bg-transparent transition-colors">
+            </div>
+            <div id="mode-diag-content">
+                <div id="questions-list" class="space-y-5"></div>
+                <div class="mt-10 p-8 bg-white border border-slate-100 rounded-[3rem] text-center shadow-lg">
+                    <p class="text-xs font-black text-slate-400 mb-4 uppercase tracking-tighter">回答進捗: <span id="answered-count" class="text-blue-600 font-black">0</span> / 60</p>
+                    <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden"><div id="progress-bar" class="bg-blue-600 h-full transition-all duration-500" style="width: 0%"></div></div>
+                </div>
+                <button id="main-submit-btn" onclick="window.calculateAndSaveWithAI()" class="w-full mt-8 bg-slate-900 text-white py-6 rounded-[2.5rem] font-black shadow-2xl active:scale-95 transition-all text-lg flex flex-col items-center justify-center space-y-2 mb-10">
+                    <span id="submit-btn-text">AIマスター診断を実行</span>
+                    <div id="submit-loading-bar" class="hidden w-full px-12">
+                        <div class="ai-progress-bar"><div id="submit-progress-fill" class="ai-progress-fill"></div></div>
+                    </div>
+                </button>
+            </div>
+            <div id="mode-manual-content" class="hidden">
+                <div id="manual-inputs" class="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-5"></div>
+                <div class="grid grid-cols-2 gap-4 mt-6">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-slate-400 block ml-3 uppercase tracking-widest font-black">1F ベース</label>
+                        <select id="manual-base" class="w-full p-4 bg-white border border-slate-200 rounded-2xl text-sm font-black shadow-sm outline-none appearance-none"></select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-slate-400 block ml-3 uppercase tracking-widest font-black">現在のフェーズ</label>
+                        <select id="manual-phase" class="w-full p-4 bg-white border border-slate-200 rounded-2xl text-sm font-black shadow-sm outline-none appearance-none"></select>
+                    </div>
+                </div>
+                <button onclick="window.saveManualEntry()" class="w-full mt-8 bg-emerald-600 text-white py-6 rounded-[2.5rem] font-black shadow-xl active:scale-95 transition-all mb-10">保存を確定する</button>
+            </div>
+        </div>
+
+        <!-- 記録 -->
+        <div id="section-records" class="section hidden">
+            <div class="relative mb-8">
+                <input type="text" id="record-search-global" oninput="window.renderRecords()" placeholder="氏名で検索..." class="w-full p-5 pl-14 bg-white border border-slate-100 rounded-[2rem] text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-100 transition-all">
+                <svg class="absolute left-6 top-5 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <div id="records-view-groups">
+                <div class="grid grid-cols-2 gap-5 mb-10" id="base-type-grid"></div>
+            </div>
+            <div id="records-view-members" class="hidden">
+                <div class="flex items-center justify-between mb-6 px-1 border-b border-slate-100 pb-4">
+                    <div class="flex items-center space-x-4">
+                        <button onclick="window.backToGroups()" class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-2xl shadow-sm text-slate-500 active:scale-90 transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        </button>
+                        <h2 id="current-group-title" class="text-xl font-black text-slate-800">一覧</h2>
+                    </div>
+                </div>
+                <div id="records-list" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- 研修メモ -->
+        <div id="section-training" class="section hidden">
+            <div class="flex justify-between items-center mb-8 px-1">
+                <h2 class="text-lg font-black text-slate-800 tracking-tight font-black">研修・メモ記録</h2>
+                <button onclick="window.showAddFolderModal()" class="text-xs bg-slate-900 text-white px-5 py-2.5 rounded-full shadow-lg font-black active:scale-95 transition-all">+ フォルダ</button>
+            </div>
+            <div id="training-view-folders" class="grid grid-cols-2 gap-5"></div>
+            <div id="training-view-memos" class="hidden">
+                <div class="flex items-center justify-between mb-8">
+                    <div class="flex items-center space-x-4">
+                        <button onclick="window.backToFolders()" class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-2xl shadow-sm active:scale-90 transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+                        <h2 id="current-folder-title" class="font-black text-slate-800 truncate max-w-[140px]">フォルダ</h2>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="window.showEditFolderModal()" class="text-[11px] bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-bold">管理</button>
+                        <button onclick="window.showAddMemoModal()" class="text-[11px] bg-blue-600 text-white px-4 py-1.5 rounded-full shadow-md font-black">+ 追加</button>
+                    </div>
+                </div>
+                <div id="memos-list" class="space-y-5"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 結果詳細モーダル -->
+    <div id="detail-modal" class="fixed inset-0 custom-modal-overlay z-50 hidden flex items-end justify-center">
+        <div class="bg-white w-full max-w-md rounded-t-[3.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[94vh] animate-slide-up">
+            <div id="modal-header" class="p-8 text-white font-bold flex justify-between items-center shadow-lg">
+                <span id="modal-user-name" class="text-2xl font-black tracking-tighter font-black"></span>
+                <button onclick="window.closeModal()" class="w-12 h-12 flex items-center justify-center rounded-full bg-black/10 text-2xl font-bold active:scale-90">&times;</button>
+            </div>
+            <div class="p-8 overflow-y-auto flex-1 space-y-8 pb-48">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-50 p-4 rounded-3xl border border-slate-100 text-center shadow-inner"><span class="text-[10px] text-slate-400 block mb-1 uppercase font-black tracking-widest font-black">1F ベース</span><span id="modal-base-val" class="font-black text-base uppercase"></span></div>
+                    <div class="bg-slate-50 p-4 rounded-3xl border border-slate-100 text-center"><span class="text-[10px] text-slate-400 block mb-1 uppercase font-black tracking-widest font-black">現在のフェーズ</span><span id="modal-phase-val" class="font-black text-base text-blue-600 uppercase font-black"></span></div>
+                </div>
+                <div class="h-[240px] w-full bg-slate-50 rounded-[3rem] p-6 border border-slate-100 shadow-inner"><canvas id="resultChart"></canvas></div>
+                
+                <div class="pt-2">
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-1 font-black">AIマスター深層解析</h4>
+                    <button id="ai-advice-btn" onclick="window.generateAIAdvice()" class="w-full bg-slate-900 text-white py-5 rounded-3xl font-black shadow-xl active:scale-95 flex flex-col items-center justify-center space-y-1 transition-all">
+                        <span id="ai-btn-text">✨ 解析レポートを作成する</span>
+                        <div id="ai-loading-progress" class="hidden w-full px-12">
+                            <div class="ai-progress-bar"><div id="ai-progress-fill" class="ai-progress-fill"></div></div>
+                        </div>
+                    </button>
+                    <div id="ai-report-menu" class="hidden mt-2 grid grid-cols-2 gap-3.5"></div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-8">
+                    <div class="flex items-center justify-between mb-5 px-1">
+                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black font-black font-black">個人メモ記録</h4>
+                        <button onclick="window.showAddIndividualMemoModal()" class="text-[10px] text-blue-600 font-black px-4 py-2 bg-blue-50 rounded-full border border-blue-100 active:scale-95 font-black">+ メモ追加</button>
+                    </div>
+                    <div id="individual-memos-list" class="space-y-4 font-black"></div>
+                </div>
+            </div>
+            <div class="fixed bottom-0 left-0 right-0 p-6 border-t bg-white/95 backdrop-blur-md flex space-x-4 pb-12">
+                <button onclick="window.editCurrentRecord()" class="flex-1 py-5 bg-white border-2 border-slate-100 rounded-[2.5rem] font-black text-slate-500 text-sm shadow-sm active:bg-slate-50 transition-all font-black">内容を修正</button>
+                <button onclick="window.showDeleteRecordConfirm()" class="flex-1 py-5 bg-red-50 text-red-600 rounded-[2.5rem] font-black text-sm shadow-sm active:bg-red-100 transition-all font-black">削除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI詳細オーバーレイ -->
+    <div id="ai-detail-overlay" class="fixed inset-0 bg-white z-[110] hidden flex flex-col pb-safe animate-slide-up">
+        <header class="pt-16 pb-6 px-8 flex items-center justify-between border-b border-slate-50 sticky top-0 bg-white/90 backdrop-blur-xl">
+            <h3 id="ai-overlay-title" class="text-xl font-black text-slate-800 underline decoration-blue-500 decoration-4 underline-offset-8 font-black">項目詳細</h3>
+            <button onclick="window.closeAiDetail()" class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center font-black text-xl active:scale-90 transition-all">×</button>
+        </header>
+        <div class="flex-1 overflow-y-auto px-8 py-10 bg-white">
+            <div id="ai-overlay-content" class="report-text whitespace-pre-wrap font-medium pb-24"></div>
+        </div>
+    </div>
+
+    <!-- 入力モーダル -->
+    <div id="input-modal" class="fixed inset-0 custom-modal-overlay z-[70] hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl space-y-4 border-t-4 border-blue-500">
+            <h3 id="input-modal-title" class="font-black text-slate-800 text-lg font-black">入力</h3>
+            <div class="space-y-3">
+                <input type="text" id="input-text-field" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-400 font-black shadow-sm" placeholder="タイトル...">
+                <textarea id="input-textarea-field" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-400 hidden font-bold shadow-sm" rows="6" placeholder="本文を入力..."></textarea>
+                <div id="input-image-area" class="hidden">
+                    <div class="flex items-center space-x-4 p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                        <button onclick="document.getElementById('image-input').click()" class="w-12 h-12 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-blue-500 shadow-sm active:bg-slate-100">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </button>
+                        <p class="text-[10px] text-slate-400 font-bold font-black">写真を選択・撮影</p>
+                    </div>
+                    <input type="file" id="image-input" class="hidden" accept="image/*" onchange="window.handleImageSelect(event)">
+                    <div id="image-preview-container" class="mt-3 hidden relative border-2 border-white shadow-md rounded-xl overflow-hidden"><img id="image-preview" class="w-full h-auto"></div>
+                </div>
+            </div>
+            <div id="input-modal-footer" class="flex flex-col space-y-3 pt-2">
+                <div class="flex space-x-3">
+                    <button onclick="window.closeInputModal()" class="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold font-black">キャンセル</button>
+                    <button id="input-modal-action" class="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-md active:bg-blue-700 font-black">保存</button>
+                </div>
+                <button id="input-modal-delete" class="hidden w-full py-2 text-red-600 font-black text-[12px] underline">内容を削除する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 削除確認 -->
+    <div id="delete-confirm-modal" class="fixed inset-0 custom-modal-overlay z-[200] hidden flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-xs rounded-[3rem] p-10 shadow-2xl text-center space-y-6 animate-ios-fade">
+            <div class="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <div class="space-y-2">
+                <h3 class="text-xl font-black text-slate-800 font-black">削除しますか？</h3>
+                <p id="delete-confirm-msg" class="text-sm text-slate-500 leading-relaxed font-bold font-black">この操作は取り消せません。</p>
+            </div>
+            <div class="flex flex-col space-y-3">
+                <button id="delete-confirm-action" class="w-full py-4 bg-red-600 text-white rounded-2xl font-black shadow-lg active:bg-red-700">削除を実行</button>
+                <button onclick="window.hideDeleteConfirm()" class="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold active:bg-slate-200">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ナビゲーションバー -->
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-100 flex justify-around items-center h-24 z-40 pb-10 shadow-[0_-10px_30px_rgba(0,0,0,0.04)]">
+        <button onclick="window.switchTab('info')" id="tab-info" class="flex flex-col items-center justify-center w-full h-full relative transition-all tab-active">
+            <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+            <span class="text-[10px] font-black uppercase tracking-wider font-black font-black">解説</span>
+        </button>
+        <button onclick="window.switchTab('entry')" id="tab-entry" class="flex flex-col items-center justify-center w-full h-full text-slate-400 relative transition-all">
+            <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span class="text-[10px] font-black uppercase tracking-wider font-black font-black">診断</span>
+        </button>
+        <button onclick="window.switchTab('records')" id="tab-records" class="flex flex-col items-center justify-center w-full h-full text-slate-400 relative transition-all">
+            <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+            <span class="text-[10px] font-black uppercase tracking-wider font-black font-black">記録</span>
+        </button>
+        <button onclick="window.switchTab('training')" id="tab-training" class="flex flex-col items-center justify-center w-full h-full text-slate-400 relative transition-all">
+            <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            <span class="text-[10px] font-black uppercase tracking-wider font-black font-black font-black">メモ</span>
+        </button>
+    </nav>
+
+    <script>
+        // --- 1. 最上部に定数とデータを固定 ---
+        const apiKey = "";
+        const STORAGE_RECORDS = 'pcm_pro_v25_records';
+        const STORAGE_HANDBOOK = 'pcm_pro_v25_handbook';
+        const STORAGE_FOLDERS = 'pcm_pro_v25_folders';
+        const STORAGE_MEMOS = 'pcm_pro_v25_memos';
+
+        const DEFAULT_TYPES_DATA = [
+            { id: 'thinker', name: 'シンカー', color: '#0ea5e9', desc: '論理、計画、正確性を重視。物事を事実に基づいて組織立てる。', filters: '思考・論理の窓。世界をデータと順序で捉える。', gestures: '顎に手を当てる、メガネを直す、指先を合わせる。', catchphrase: '「具体的には？」「効率的に」「論理的に言うと」。', facial: '眉間にしわ、冷静で隙のない表情、動かない瞳。', liked: 'スケジュール、高性能ガジェット、統計データ、整理された部屋。', healing: '一人での情報整理、整頓されたデスク、静かな図書館。', distress_b1: '完璧主義になり、細部にこだわりすぎて時間を浪費する。', distress_b2: '相手の無能さを批判し、論理的に追い詰める「知的攻撃」。', distress_b3: '「自分は無能だ」という絶望感に陥り、全ての計画を放棄する。' },
+            { id: 'persister', name: 'パシスター', color: '#7c3aed', desc: '信念、誠実、信頼を重視. 価値観に基づいて物事を判断する。', filters: '意見・価値の窓。世界を正しいか正しくないかで捉える。', gestures: '胸に手を当てる、深く頷く、背筋を伸ばして座る. ', catchphrase: '「私は〜と信じます」「誠実であるべきだ」「信頼が第一」。', facial: '厳格で意志の強そうな眼差し、引き締まった口元。', liked: '伝統、実績、名言集、政治や哲学の議論、信頼できる仲間。', healing: '自然の中での内省、歴史的建造物、信頼のおける人との対話。', distress_b1: '他人に自分と同じ高い基準を求め、不満を募らせる。', distress_b2: '独善的な正義を振りかざし、相手を「不道徳だ」と説教する。', distress_b3: '「この世に正義はない」という宗教的・哲学的な絶望に陥る。' },
+            { id: 'harmonizer', name: 'ハーモナイザー', color: '#f97316', desc: '思いやり、感受性、調和を重視。感情で世界を捉える。', filters: '感情・情緒の窓。世界を心地よいか不快かで捉える。', gestures: '相手に触れる、小首をかしげる、胸の前で手を組む。', catchphrase: '「わかります」「嬉しいです」「みんなが良ければ」。', facial: '潤んだ瞳、柔和な微笑み、感情に合わせてよく動く表情。', liked: 'キャンドル、心地よい音楽、アロマ、家族写真、温かい飲み物。', healing: '愛する人とのハグ、ふわふわの毛布、ペットとの時間。', distress_b1: 'NOと言えず、自己犠牲的に他人の機謙を取ろうとする。', distress_b2: 'わざとミスをして気を引いたり、被害者意識を募らせる。', distress_b3: '「自分には価値がない」という自己拒絶の絶望に陥る。' },
+            { id: 'imaginer', name: 'イマジナー', color: '#78350f', desc: '冷静、思慮深い、内省的。豊かな内面世界を持つ。', filters: '内省・想像の窓。世界を静かなイメージとして捉える。', gestures: 'じっと動かない、遠くを見つめる、独り言を漏らす。', catchphrase: '「考えています」「静かにさせてください」「...」。', facial: '空想にふけるような遠い目、変化の少ない淡々とした表情。', liked: '広い宇宙の写真、静寂、抽象画、複雑な理論、一人の時間。', healing: '何もない空間、星空を見上げる、深い瞑想、一人旅。', distress_b1: '決断を先延ばしにし、外部からの指示を待ち続ける。', distress_b2: '完全に自分の殻に閉じこもり、周囲との接触を遮断する。', distress_b3: '現実感を失い、自分が存在していないかのような空虚感に陥る。' },
+            { id: 'rebel', name: 'レベル', color: '#eab308', desc: '自発的、遊び心、創造性. 変化と刺激を好む。', filters: '反応・ユーモアの窓。世界を楽しいか退屈かで捉える. ', gestures: '身振りが大きい、貧乏ゆすり、奇抜なファッション. ', catchphrase: '「最高！」「おもしろそう！」「マジで？」「イェーイ！」。', facial: 'いたずらっ子のような目、豊かすぎる表情の変化、よく笑う。', liked: '漫画、ゲーム、パーティー、サプライズ、カラフルな雑貨。', healing: '大音量の音楽、遊園地、面白い映画、何も考えない遊び。', distress_b1: 'わざと周囲を困らせて反応を見ようとする。', distress_b2: '「私は悪くない、あいつのせいだ」と猛烈に責任転嫁する. ', distress_b3: '復讐心や破壊的衝動にかられ、人間関係をめちゃくちゃにする。' },
+            { id: 'promoter', name: 'プロモーター', color: '#dc2626', desc: '適応力、行動力、スリル. 即断即決と短期成果。', filters: '行動・スリルの窓. 世界を動かせるか否かで捉える。', gestures: '身を乗り出す、握手をする、高級品を身に付ける。', catchphrase: '「今すぐやろう」「結論は？」「リスクを取れ」「勝つ」。', facial: '自信に満ちた鋭い視線、魅力的で力強い表情。', liked: '高級車、カジノ、勝負事、豪華な食事、最短ルートの成功。', healing: '高級スパ、高速道路のドライブ、豪華なホテルのスイート。', distress_b1: '「感情は不要だ」と冷酷になり、他人を駒のように操る。', distress_b2: '無謀なギャンブルやリスクを冒し、周囲をトラブルに巻き込む。', distress_b3: '「誰も信じられない」と完全に孤立し、暴力的・自暴自棄になる。' }
+        ];
+
+        const QUESTIONS = [
+            { type: 'thinker', q: '詳細な計画やスケジュールを立てることを習慣にしている。' },
+            { type: 'thinker', q: '感情的な訴えよりも、論理的でデータに基づいた説明を好む。' },
+            { type: 'thinker', q: '効率を追求し、仕事や日常生活を組織立てるのが得意だ。' },
+            { type: 'thinker', q: '物事の判断には主観的な感情より理性を優先させる。' },
+            { type: 'thinker', q: '自分の有能さを具体的な成果で認められるのが最大の喜びだ。' },
+            { type: 'thinker', q: '時間管理を徹底しており、遅刻やルーズな対応を嫌う。' },
+            { type: 'thinker', q: '整理整頓された空間にいると安心し、思考が冴える。' },
+            { type: 'thinker', q: '曖昧な指示よりも、明確な手順がある環境を好む。' },
+            { type: 'thinker', q: '仕事の正確性が欠けることに対して強いストレスを感じる。' },
+            { type: 'thinker', q: '予期せぬスケジュールの変更には強い不快感を覚える。' },
+            { type: 'persister', q: '自分の信念や正しいと思う価値観を何より大切にしている。' },
+            { type: 'persister', q: '相手に最も求めるのは、誠実さや信頼性である。' },
+            { type: 'persister', q: '「正しいかどうか」という道徳的な基準で物事を判断する。' },
+            { type: 'persister', q: '一度引き受けた責任や約束は、どんな困難でも全うする。' },
+            { type: 'persister', q: '自分の信念や組織への貢献が認められると幸福感を得る。' },
+            { type: 'persister', q: '正義に反することや、不誠実な態度を見ると強い怒りを感じる。' },
+            { type: 'persister', q: '伝統や実績、尊敬できる先人の教訓を尊重する。' },
+            { type: 'persister', q: '周囲からは「真面目で責任感が強い」と言われることが多い。' },
+            { type: 'persister', q: '人との深い信頼関係を築くには時間がかかっても構わない。' },
+            { type: 'persister', q: '自分の意見をはっきり持ち、それを貫く強さを持っている。' },
+            { type: 'harmonizer', q: '相手の声のトーンや表情から、繊細に感情を察知する。' },
+            { type: 'harmonizer', q: '周囲が調和している状態に、大きな安心感と喜びを感じる。' },
+            { type: 'harmonizer', q: '特別な理由がなくても、人と温かく交流する時間を必要とする。' },
+            { type: 'harmonizer', q: '能力を褒められるより、存在そのものを愛されている実感を得たい。' },
+            { type: 'harmonizer', q: '五感（美しい風景、音楽、香りなど）への刺激に敏感だ。' },
+            { type: 'harmonizer', q: '他人を喜ばせたい、役に立ちたいという気持ちが強い。' },
+            { type: 'harmonizer', q: '衝突や争いを避けるために、自分を抑えてしまうことがある。' },
+            { type: 'harmonizer', q: '温かい雰囲気の中で働くことで、最も能力を発揮できる。' },
+            { type: 'harmonizer', q: '「あなたがいるだけで安心する」と言われると存在意義を感じる。' },
+            { type: 'harmonizer', q: '相手への共感力が非常に高く、悩みを聞くのが得意だ。' },
+            { type: 'imaginer', q: '一人の静かな空間で自分の思考に浸る時間を必要とする。' },
+            { type: 'imaginer', q: '自分から動くより、外部からの明確なきっかけを待つ方が楽だ. ' },
+            { type: 'imaginer', q: '複雑なことも、頭の中でイメージや映像として捉えている。' },
+            { type: 'imaginer', q: '騒がしい場所や過度な刺激には、人一倍疲れを感じやすい。' },
+            { type: 'imaginer', q: '具体的な手順さえ示されれば、淡々と着実に実行できる。' },
+            { type: 'imaginer', q: '自分の内側にある豊かなビジョンや想像力を大切にしている。' },
+            { type: 'imaginer', q: '一歩引いて全体の流れを静かに観察しているのが好きだ. ' },
+            { type: 'imaginer', q: '周囲からは「落ち着いている」「内省的だ」と言われがちだ。' },
+            { type: 'imaginer', q: '自分のペースで進めることができれば、忍耐強くやり抜ける。' },
+            { type: 'imaginer', q: '言葉にするのが難しいほど、深い洞察力を持っている。' },
+            { type: 'rebel', q: '遊び心や冗盤、笑いのある状況がエネルギーの源だ。' },
+            { type: 'rebel', q: '「おもしろそう！」と思ったら、理由を考えず即座に飛びつく。' },
+            { type: 'rebel', q: '既存のルールや常識にとらわれない、自由な発想を好む。' },
+            { type: 'rebel', q: '自分のユニークな個性を表現し、人とは違うスタイルを望む。' },
+            { type: 'rebel', q: '退屈なことや、深刻すぎる空気からはすぐに逃げたくなる. ' },
+            { type: 'rebel', q: '他人から面白い反応が返ってきたり、笑わせたりするのが好きだ. ' },
+            { type: 'rebel', q: '嫌なことがあっても、すぐに切り替ええて前向きになれる。' },
+            { type: 'rebel', q: '創造的で突飛なアイデアを出すのが、自分でも得意だと思う。' },
+            { type: 'rebel', q: '真面目すぎる空気は苦手で、冗談を言って和ませたくなる。' },
+            { type: 'rebel', q: '遊び心のある陽気な人たちと一緒にいるとチャージされる。' },
+            { type: 'promoter', q: 'スリルや刺激、挑戦のあるドラマチックな環境を求める。' },
+            { type: 'promoter', q: '自分の魅力や説得力で人を動かすことに自信がある。' },
+            { type: 'promoter', q: 'リスクがある状況ほど、アドレナリンが出てワクワクする. ' },
+            { type: 'promoter', q: '一刻も早く結果を出したいため、形式的な手続きは省きたい。' },
+            { type: 'promoter', q: '逆境に立たされても、スマートに解決策を見つけ出し行動する。' },
+            { type: 'promoter', q: '指示を待つより、自分が先頭に立ってスピーディーに進めたい。' },
+            { type: 'promoter', q: '短期的な成果や、勝負事で勝つことに大きな快感を得る。' },
+            { type: 'promoter', q: '適応力が非常に高く、どのような環境でも生き抜ける自負がある。' },
+            { type: 'promoter', q: '「できるか」よりも「やる」と決めて即実行することが習慣だ。' },
+            { type: 'promoter', q: '退屈な日常よりも、常に新しい勝機や刺激を探している。' }
+        ];
+
+        const AI_CATEGORIES_DATA = [
+            { key: 'summary', title: '診断の概要', icon: '📋' },
+            { key: 'filters', title: '捉え方と接し方', icon: '👂' },
+            { key: 'traits', title: '資質・強み・癖', icon: '🎭' },
+            { key: 'work', title: '組織での役割', icon: '💼' },
+            { key: 'feedback', title: '褒め方・注意方', icon: '🗣️' }, // 新設
+            { key: 'relationship', title: '信頼の築き方', icon: '🫂' },
+            { key: 'needs', title: '心の充電法', icon: '🔋' },
+            { key: 'compatibility', title: '相性・摩擦回避', icon: '🤝' },
+            { key: 'distress', title: 'ストレス対応', icon: '🆘' },
+            { key: 'totalAdvice', title: 'マスターの助言', icon: '💡' }
+        ];
+
+        // --- 2. 状態管理 ---
+        let records = JSON.parse(localStorage.getItem(STORAGE_RECORDS) || '[]');
+        let customInfo = JSON.parse(localStorage.getItem(STORAGE_HANDBOOK) || JSON.stringify(DEFAULT_TYPES_DATA));
+        let folders = JSON.parse(localStorage.getItem(STORAGE_FOLDERS) || '[]');
+        let memos = JSON.parse(localStorage.getItem(STORAGE_MEMOS) || '[]');
+        
+        let currentEditingId = null;
+        let selectedBaseFilter = null;
+        let isEditingInfo = false;
+        let currentFolderId = null;
+        let tempBase64Image = null;
+        let chartInstance = null;
+
+        // --- 3. 基礎関数 (window 登録) ---
+        window.persistAll = function() {
+            localStorage.setItem(STORAGE_RECORDS, JSON.stringify(records));
+            localStorage.setItem(STORAGE_HANDBOOK, JSON.stringify(customInfo));
+            localStorage.setItem(STORAGE_FOLDERS, JSON.stringify(folders));
+            localStorage.setItem(STORAGE_MEMOS, JSON.stringify(memos));
+        };
+
+        window.showToast = function(msg) {
+            const t = document.getElementById('toast');
+            if (t) { t.innerText = msg; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 3500); }
+        };
+
+        window.toggleDetails = function(id) {
+            const el = document.getElementById(`details-${id}`);
+            if (el) el.classList.toggle('hidden');
+        };
+
+        window.toggleEntryMode = function(m) {
+            const dC = document.getElementById('mode-diag-content');
+            const mC = document.getElementById('mode-manual-content');
+            const dB = document.getElementById('btn-mode-diag');
+            const mB = document.getElementById('btn-mode-manual');
+            if (dC) dC.className = (m === 'diag' ? '' : 'hidden');
+            if (mC) mC.className = (m === 'manual' ? '' : 'hidden');
+            if (dB) dB.className = 'flex-1 py-3.5 rounded-xl font-black text-sm ' + (m === 'diag' ? 'bg-white shadow-md text-blue-600' : 'text-slate-500');
+            if (mB) mB.className = 'flex-1 py-3.5 rounded-xl font-black text-sm ' + (m === 'manual' ? 'bg-white shadow-md text-blue-600' : 'text-slate-500');
+        };
+
+        window.extractCleanJson = function(raw) {
+            try {
+                let t = raw.replace(/```json|```/g, "").trim();
+                const s = t.indexOf('{'); const e = t.lastIndexOf('}');
+                if (s !== -1 && e !== -1) { t = t.substring(s, e + 1); }
+                return JSON.parse(t);
+            } catch (e) { throw new Error("データ形式エラー"); }
+        };
+
+        window.displaySavedAIAdvice = function(adv) {
+            const menu = document.getElementById('ai-report-menu');
+            const btn = document.getElementById('ai-advice-btn');
+            if (!adv || !menu) return;
+            btn.classList.add('hidden'); menu.classList.remove('hidden');
+            menu.innerHTML = AI_CATEGORIES_DATA.map(cat => `
+                <div class="category-card" onclick="window.openAiCategoryDetail('${cat.key}')">
+                    <span class="category-icon">${cat.icon}</span>
+                    <span class="text-[10px] font-black text-slate-700 leading-tight">${cat.title}</span>
+                </div>`).join('');
+        };
+
+        window.openAiCategoryDetail = function(key) {
+            const d = records.find(r => r.id === currentEditingId); if (!d || !d.aiAdvice) return;
+            const cat = AI_CATEGORIES_DATA.find(c => c.key === key);
+            const overlay = document.getElementById('ai-detail-overlay');
+            const cEl = document.getElementById('ai-overlay-content');
+            const tEl = document.getElementById('ai-overlay-title');
+            
+            let text = "";
+            if (typeof d.aiAdvice === 'string') {
+                text = d.aiAdvice;
+            } else {
+                // キー名、または日本語タイトル名で検索フォールバック
+                text = d.aiAdvice[key] || d.aiAdvice[cat.title] || "情報がありません。";
+            }
+            
+            text = text.replace(/[＊＃\*#=【】]/g, '').trim();
+            tEl.innerText = cat.title; cEl.innerText = text;
+            overlay.classList.remove('hidden');
+        };
+
+        window.closeAiDetail = function() { document.getElementById('ai-detail-overlay').classList.add('hidden'); };
+        window.closeModal = function() { document.getElementById('detail-modal').classList.add('hidden'); };
+
+        window.showGeneralDeleteConfirm = function(msg, onAction) {
+            const modal = document.getElementById('delete-confirm-modal');
+            const msgEl = document.getElementById('delete-confirm-msg');
+            if (msgEl) msgEl.innerText = msg;
+            modal.classList.remove('hidden');
+            document.getElementById('delete-confirm-action').onclick = () => { onAction(); window.hideDeleteConfirm(); };
+        };
+
+        window.hideDeleteConfirm = function() { document.getElementById('delete-confirm-modal').classList.add('hidden'); };
+
+        // --- 4. 描画ロジック ---
+        window.renderQuestions = function() {
+            const container = document.getElementById('questions-list'); if (!container) return;
+            container.innerHTML = QUESTIONS.map((q, i) => `
+                <div id="q-card-${i}" class="q-card p-7 border-slate-100 shadow-sm">
+                    <p class="font-bold text-[15px] text-slate-800 mb-6 leading-relaxed">${i + 1}. ${q.q}</p>
+                    <div class="flex justify-between items-center px-2">
+                        ${[1, 2, 3, 4, 5].map(v => `<label class="flex flex-col items-center cursor-pointer group"><input type="radio" name="q-${i}" value="${v}" onchange="window.updateProgress()" class="w-11 h-11 border-2 border-slate-200 checked:bg-blue-600 checked:border-blue-600 transition-all appearance-none rounded-full"><span class="text-[12px] text-slate-400 font-black mt-2">${v}</span></label>`).join('')}
+                    </div>
+                </div>`).join('');
+        };
+
+        window.renderManualInputs = function() {
+            const container = document.getElementById('manual-inputs'); if (!container) return;
+            container.innerHTML = DEFAULT_TYPES_DATA.map(t => `
+                <div class="flex items-center space-x-3 text-xs">
+                    <div class="w-24 font-black text-slate-500 truncate uppercase tracking-tighter">${t.name}</div>
+                    <input type="number" id="manual-val-${t.id}" min="0" max="100" value="0" class="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-right font-black shadow-inner outline-none transition-all">
+                    <span class="text-slate-300 font-black">%</span>
+                </div>`).join('');
+            const sB = document.getElementById('manual-base'); const sP = document.getElementById('manual-phase');
+            if (sB && sP) {
+                sB.innerHTML = sP.innerHTML = '';
+                DEFAULT_TYPES_DATA.forEach(t => { const o = `<option value="${t.id}">${t.name}</option>`; sB.innerHTML += o; sP.innerHTML += o; });
+            }
+        };
+
+        window.renderTypesInfo = function() {
+            const container = document.getElementById('types-info-list'); if (!container) return;
+            container.innerHTML = customInfo.map(t => `
+                <div class="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="p-6 flex items-center space-x-5 cursor-pointer active:bg-slate-50 transition-colors" onclick="window.toggleDetails('${t.id}')">
+                        <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg" style="background-color: ${t.color}">${t.name[0]}</div>
+                        <div class="flex-1"><h3 class="font-black text-slate-800 text-lg uppercase tracking-tight">${t.name}</h3><p class="text-[12px] text-slate-400 line-clamp-1 font-bold">${t.desc}</p></div>
+                    </div>
+                    <div id="details-${t.id}" class="bg-slate-50/30 p-8 border-t border-slate-50 space-y-8 text-[13px] leading-relaxed hidden font-black">
+                        <div><span class="text-[10px] text-slate-400 font-black block mb-2 uppercase tracking-widest font-black">概要・捉え方</span><p class="report-text font-bold text-slate-700">${t.desc}</p><p class="report-text text-slate-500 mt-2 italic border-l-4 pl-3 border-blue-100">${t.filters}</p></div>
+                        <div class="grid grid-cols-2 gap-6"><div><span class="text-[10px] text-blue-400 font-black block mb-2 uppercase tracking-tight">しぐさ</span><p class="text-slate-600 font-bold">${t.gestures}</p></div><div><span class="text-[10px] text-blue-400 font-black block mb-2 uppercase tracking-tight">口癖</span><p class="text-slate-600 font-bold italic">${t.catchphrase}</p></div></div>
+                        <div><span class="text-[10px] text-blue-400 font-black block mb-2 uppercase tracking-tight font-black">顔の特徴</span><p class="text-slate-600 font-bold">${t.facial}</p></div>
+                        <div class="bg-white/50 p-5 rounded-[2rem] border border-slate-100"><span class="text-[10px] text-emerald-400 font-black block mb-3 uppercase tracking-tight font-black">好きなこと・もの</span><p class="report-text font-bold text-emerald-700">・${t.liked}</p><p class="report-text font-bold text-emerald-600 mt-2 italic font-black font-black">・癒やし：${t.healing}</p></div>
+                        <div class="space-y-4"><span class="text-[10px] text-red-400 font-black block uppercase tracking-tight font-black">ディストレスの階層</span><div class="bg-red-50/50 p-5 rounded-[2rem] border border-red-100 space-y-3"><p class="text-red-700 font-bold"><span class="bg-red-100 px-2 py-0.5 rounded-lg mr-2 font-black text-[9px]">B1F</span>${t.distress_b1}</p><p class="text-red-800 font-black"><span class="bg-red-200 px-2 py-0.5 rounded-lg mr-2 font-black text-[9px]">B2F</span>${t.distress_b2}</p><p class="text-red-900 font-black underline"><span class="bg-red-300 px-2 py-0.5 rounded-lg mr-2 font-black text-[9px]">B3F</span>${t.distress_b3}</p></div></div>
+                    </div>
+                </div>`).join('');
+        };
+
+        window.renderBaseTypeGrid = function() {
+            const grid = document.getElementById('base-type-grid'); if (!grid) return;
+            grid.innerHTML = DEFAULT_TYPES_DATA.map(t => `
+                <div onclick="window.setBaseFilter('${t.id}')" class="base-tile cursor-pointer p-6 border-2 border-transparent transition-all shadow-sm active:scale-95">
+                    <div class="w-16 h-16 rounded-[2rem] mb-3 shadow-xl flex items-center justify-center text-white font-black text-2xl" style="background-color: ${t.color}">${t.name[0]}</div>
+                    <span class="text-[12px] font-black text-slate-700 uppercase tracking-tighter">${t.name}</span>
+                </div>`).join('');
+        };
+
+        window.renderRecords = function() {
+            const container = document.getElementById('records-list');
+            const gV = document.getElementById('records-view-groups');
+            const mV = document.getElementById('records-view-members');
+            const sI = document.getElementById('record-search-global');
+            if (!container || !gV || !mV || !sI) return;
+            window.renderBaseTypeGrid();
+            const val = sI.value.toLowerCase();
+            if (val || selectedBaseFilter) {
+                gV.classList.add('hidden'); mV.classList.remove('hidden');
+                let filtered = records;
+                if (selectedBaseFilter) {
+                    const info = DEFAULT_TYPES_DATA.find(t => t.id === selectedBaseFilter);
+                    document.getElementById('current-group-title').innerText = `${info ? info.name : '不明'}`;
+                    filtered = filtered.filter(r => r.base === selectedBaseFilter);
+                } else { document.getElementById('current-group-title').innerText = `検索結果`; }
+                if (val) filtered = filtered.filter(r => r.name.toLowerCase().includes(val));
+                window.renderMemberList(filtered);
+            } else { gV.classList.remove('hidden'); mV.classList.add('hidden'); }
+        };
+
+        window.renderMemberList = function(list) {
+            const container = document.getElementById('records-list');
+            if (list.length === 0) { container.innerHTML = '<div class="py-24 text-center text-slate-300 text-sm font-black uppercase tracking-widest font-black font-black">該当データなし</div>'; return; }
+            container.innerHTML = list.map(r => `
+                <div onclick="window.showDetail('${r.id}')" class="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex justify-between items-center shadow-sm record-item transition-all active:scale-95">
+                    <div><p class="font-black text-slate-800 text-lg font-black">${r.name}</p><p class="text-[11px] text-slate-400 mt-1 font-bold uppercase tracking-widest italic">フェーズ: ${DEFAULT_TYPES_DATA.find(t => t.id === r.phase)?.name || '未設定'}</p></div>
+                    <div class="flex items-center space-x-3">${r.aiAdvice ? '<span class="bg-blue-50 text-blue-600 text-[10px] font-black px-3 py-1 rounded-full border border-blue-100 font-black font-black">AI解析済</span>' : ''} <svg class="w-6 h-6 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></div>
+                </div>`).join('');
+        };
+
+        window.renderTraining = function() {
+            const fG = document.getElementById('training-view-folders');
+            const mV = document.getElementById('training-view-memos');
+            if (!fG || !mV) return;
+            if (!currentFolderId) {
+                fG.classList.remove('hidden'); mV.classList.add('hidden');
+                fG.innerHTML = folders.map(f => `
+                    <div onclick="window.openFolder('${f.id}')" class="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center space-y-4 active:scale-95 transition-all shadow-md">
+                        <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-[2rem] flex items-center justify-center shadow-inner font-black font-black"><svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg></div>
+                        <span class="text-sm font-black text-slate-700 truncate w-full text-center px-2 font-black">${f.name}</span>
+                    </div>`).join('');
+                if (folders.length === 0) fG.innerHTML = '<p class="col-span-2 text-center py-24 text-slate-300 text-xs font-black uppercase tracking-widest font-black">フォルダがありません</p>';
+            } else {
+                fG.classList.add('hidden'); mV.classList.remove('hidden');
+                const folder = folders.find(f => f.id === currentFolderId);
+                document.getElementById('current-folder-title').innerText = folder ? folder.name : '';
+                const fMemos = memos.filter(m => m.folderId === currentFolderId).sort((a, b) => b.timestamp - a.timestamp);
+                const mList = document.getElementById('memos-list');
+                mList.innerHTML = fMemos.map(m => `
+                    <div class="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-5 relative">
+                        <p class="report-text font-black text-slate-800 leading-relaxed font-black font-black">${m.text || ''}</p>
+                        ${m.image ? `<img src="${m.image}" class="memo-img shadow-2xl border-4 border-white" onclick="window.openImagePreview('${m.image}')">` : ''}
+                        <div class="flex justify-between items-center text-[10px] text-slate-400 font-black uppercase pt-5 border-t mt-5 font-black font-black">
+                            <span>${new Date(m.timestamp).toLocaleDateString()}</span>
+                            <button onclick="window.showDeleteMemoConfirm('${m.id}')" class="text-red-500 bg-red-50 px-5 py-2 rounded-full font-black active:scale-95 font-black">削除</button>
+                        </div>
+                    </div>`).join('');
+            }
+        };
+
+        // --- 5. AI 解析ロジック ---
+        window.calculateAndSaveWithAI = async function() {
+            const name = document.getElementById('user-name').value;
+            if (!name) return alert('診断対象者の氏名を記入してください。');
+            const answers = [];
+            for (let i = 0; i < QUESTIONS.length; i++) {
+                const val = document.querySelector(`input[name="q-${i}"]:checked`);
+                if (!val) { const card = document.getElementById(`q-card-${i}`); if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' }); return alert(`${i+1}番目を回答してください。`); }
+                answers.push({ type: QUESTIONS[i].type, score: parseInt(val.value) });
+            }
+            const btn = document.getElementById('main-submit-btn');
+            const btnText = document.getElementById('submit-btn-text');
+            const fill = document.getElementById('submit-progress-fill');
+            btn.disabled = true; document.getElementById('submit-loading-bar').classList.remove('hidden');
+            let prog = 0; const interval = setInterval(() => { prog += 5; if(prog>95) prog=95; fill.style.width = prog + '%'; }, 200);
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                const payload = { 
+                    contents: [{ parts: [{ text: `診断データ: ${JSON.stringify(answers)}` }] }], 
+                    systemInstruction: { parts: [{ text: "あなたはPCM認定トレーナーです。正確に1F/Phase判定を行い、JSON形式で返してください。全タイプ名をカタカナ(シンカー、パシスター等)でIDとして算出して下さい。" }] }, 
+                    generationConfig: { responseMimeType: "application/json" } 
+                };
+                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const result = await res.json();
+                const aiResult = window.extractCleanJson(result.candidates[0].content.parts[0].text);
+                
+                clearInterval(interval); fill.style.width = '100%';
+                if (currentEditingId) {
+                    const idx = records.findIndex(r => r.id === currentEditingId);
+                    records[idx] = { ...records[idx], name, scores: aiResult.scores, base: aiResult.base, phase: aiResult.phase, date: new Date().toLocaleDateString() };
+                } else {
+                    records.push({ id: Date.now().toString(), name, scores: aiResult.scores, base: aiResult.base, phase: aiResult.phase, date: new Date().toLocaleDateString(), aiAdvice: null });
+                }
+                window.persistAll(); window.resetForm(); window.switchTab('records');
+            } catch (e) { 
+                clearInterval(interval); 
+                btnText.innerText = "❌ 診断失敗: " + e.message;
+            } finally { btn.disabled = false; document.getElementById('submit-loading-bar').classList.add('hidden'); }
+        };
+
+        window.generateAIAdvice = async function() {
+            const data = records.find(r => r.id === currentEditingId);
+            if (!data) return;
+            const fill = document.getElementById('ai-progress-fill');
+            const btn = document.getElementById('ai-advice-btn'); 
+            const btnText = document.getElementById('ai-btn-text');
+            btn.disabled = true; document.getElementById('ai-loading-progress').classList.remove('hidden');
+            let prog = 0; const interval = setInterval(() => { prog += 10; if(prog>95) prog=95; fill.style.width = prog + '%'; }, 500);
+
+            const systemPrompt = `あなたはPCMシニアトレーナーです。個別解析レポートを作成してください。
+【厳守事項】
+・タイプ名は必ずカタカナ（シンカー、パシスター、ハーモナイザー、レベル、プロモーター、イマジナー）のみを使用。
+・専門用語を徹底的にかみ砕き、具体的で温かい日本語文章で解説してください。
+・各項目は3段落以上の長文で、内容を非常に濃く記述。
+・feedback項目では、仕事で「褒める時の声掛け」「注意する時の声掛け」について、具体的な良い例と悪い例を複数提示してください。
+・記号（＊＃【】等）を排除し、「・」と文章のみ。
+・JSON形式、キー [summary, filters, traits, work, feedback, relationship, needs, compatibility, distress, totalAdvice] で返してください。`;
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: `対象: ${data.name}, スコア: ${JSON.stringify(data.scores)}` }] }], systemInstruction: { parts: [{ text: systemPrompt }], }, generationConfig: { responseMimeType: "application/json" } }) });
+                const result = await res.json();
+                const structuredAdvice = window.extractCleanJson(result.candidates[0].content.parts[0].text);
+                
+                clearInterval(interval); fill.style.width = '100%';
+                setTimeout(() => { data.aiAdvice = structuredAdvice; window.persistAll(); window.displaySavedAIAdvice(structuredAdvice); document.getElementById('ai-loading-progress').classList.add('hidden'); btn.disabled = false; }, 500);
+            } catch (e) { 
+                clearInterval(interval); 
+                btnText.innerText = "❌ 解析失敗: " + e.message;
+                btn.disabled = false;
+            }
+        };
+
+        // --- 6. 個人メモ管理 ---
+        window.renderIndividualMemos = function() {
+            const container = document.getElementById('individual-memos-list');
+            if (!container) return;
+            const recordMemos = memos.filter(m => m.recordId === currentEditingId).sort((a, b) => b.timestamp - a.timestamp);
+            if (recordMemos.length === 0) { container.innerHTML = '<p class="text-center py-8 text-slate-300 text-xs italic font-black uppercase font-black">メモがありません</p>'; return; }
+            container.innerHTML = recordMemos.map(m => `
+                <div class="bg-white p-7 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4 relative">
+                    <p class="report-text font-black text-slate-800 leading-relaxed font-black font-black">${m.text || ''}</p>
+                    ${m.image ? `<img src="${m.image}" class="memo-img shadow-lg" onclick="window.openImagePreview('${m.image}')">` : ''}
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-black pt-4 border-t mt-4 border-slate-50 font-black font-black">
+                        <span>${new Date(m.timestamp).toLocaleString()}</span>
+                        <div class="flex space-x-4">
+                            <button onclick="window.showEditIndividualMemoModal('${m.id}')" class="text-blue-500 font-black active:scale-95 font-black">編集</button>
+                            <button onclick="window.deleteIndividualMemo('${m.id}')" class="text-red-500 font-black active:scale-95 font-black">削除</button>
+                        </div>
+                    </div>
+                </div>`).join('');
+        };
+
+        window.showAddIndividualMemoModal = function() {
+            tempBase64Image = null;
+            window.openInputModal("個人メモ作成", "メモ内容を入力...", "textarea", (val) => {
+                if (!val && !tempBase64Image) return;
+                memos.push({ id: Date.now().toString(), recordId: currentEditingId, text: val, image: tempBase64Image, timestamp: Date.now() });
+                window.persistAll(); window.renderIndividualMemos();
+            }, "", true);
+        };
+
+        window.showEditIndividualMemoModal = function(id) {
+            const memo = memos.find(m => m.id === id); if (!memo) return;
+            tempBase64Image = memo.image;
+            window.openInputModal("メモの編集", "修正内容を記入...", "textarea", (val) => {
+                memo.text = val; memo.image = tempBase64Image;
+                window.persistAll(); window.renderIndividualMemos();
+            }, memo.text, true);
+        };
+
+        window.deleteIndividualMemo = function(id) {
+            window.showGeneralDeleteConfirm("このメモを削除しますか？", () => {
+                memos = memos.filter(m => m.id !== id);
+                window.persistAll(); window.renderIndividualMemos();
+            });
+        };
+
+        // --- 7. 管理系 ---
+        window.saveManualEntry = function() {
+            const name = document.getElementById('user-name').value;
+            if (!name) return alert('氏名を記入してください。');
+            const scores = {};
+            DEFAULT_TYPES_DATA.forEach(t => { scores[t.id] = parseInt(document.getElementById(`manual-val-${t.id}`).value) || 0; });
+            const base = document.getElementById('manual-base').value;
+            const phase = document.getElementById('manual-phase').value;
+            scores[base] = 100;
+            if (currentEditingId) {
+                const idx = records.findIndex(r => r.id === currentEditingId);
+                records[idx] = { ...records[idx], name, scores, base, phase, date: new Date().toLocaleDateString() };
+                window.showToast(`データを更新しました`);
+            } else {
+                records.push({ id: Date.now().toString(), name, scores, base, phase, date: new Date().toLocaleDateString(), aiAdvice: null });
+                window.showToast(`登録しました`);
+            }
+            window.persistAll(); selectedBaseFilter = base; window.resetForm(); window.switchTab('records');
+        };
+
+        window.showAddFolderModal = function() { window.openInputModal("新規フォルダ", "タイトルを入力", "text", (val) => { if (!val) return; folders.push({ id: Date.now().toString(), name: val }); window.persistAll(); window.renderTraining(); }); };
+        window.showEditFolderModal = function() {
+            const f = folders.find(f => f.id === currentFolderId);
+            const dB = document.getElementById('input-modal-delete'); dB.classList.remove('hidden');
+            dB.onclick = () => { window.showGeneralDeleteConfirm("フォルダを削除しますか？", () => { folders = folders.filter(fol => fol.id !== currentFolderId); memos = memos.filter(m => m.folderId !== currentFolderId); currentFolderId = null; window.persistAll(); window.renderTraining(); window.closeInputModal(); }); };
+            window.openInputModal("フォルダ管理", "名前を変更", "text", (val) => { if (!val) return; f.name = val; window.persistAll(); window.renderTraining(); }, f.name);
+        };
+        window.showAddMemoModal = function() { window.openInputModal("研修メモ追加", "本文を記入...", "textarea", (val) => { if (!val && !tempBase64Image) return; memos.push({ id: Date.now().toString(), folderId: currentFolderId, text: val, image: tempBase64Image, timestamp: Date.now() }); window.persistAll(); window.renderTraining(); }, "", true); };
+        window.handleImageSelect = function(e) { const file = e.target.files[0]; if (!file) return; const r = new FileReader(); r.onload = (ev) => { tempBase64Image = ev.target.result; document.getElementById('image-preview').src = tempBase64Image; document.getElementById('image-preview-container').classList.remove('hidden'); }; r.readAsDataURL(file); };
+        window.showDeleteMemoConfirm = function(id) { window.showGeneralDeleteConfirm("このメモを削除しますか？", () => { memos = memos.filter(m => m.id !== id); window.persistAll(); window.renderTraining(); }); };
+        window.showDeleteRecordConfirm = function() { window.showGeneralDeleteConfirm("記録を削除しますか？", () => { records = records.filter(r => r.id !== currentEditingId); memos = memos.filter(m => m.recordId !== currentEditingId); window.persistAll(); window.closeModal(); window.renderRecords(); }); };
+        window.openImagePreview = function(src) { document.getElementById('image-preview-full').src = src; document.getElementById('image-preview-modal').classList.remove('hidden'); };
+        window.closeImagePreview = function() { document.getElementById('image-preview-modal').classList.add('hidden'); };
+        
+        window.openInputModal = function(title, placeholder, type, onAction, currentVal = "", hasImage = false) {
+            document.getElementById('input-modal-title').innerText = title;
+            const tF = document.getElementById('input-text-field');
+            const aF = document.getElementById('input-textarea-field');
+            const iA = document.getElementById('input-image-area');
+            const dBtn = document.getElementById('input-modal-delete');
+            tF.classList.add('hidden'); aF.classList.add('hidden'); iA.classList.add('hidden');
+            if (currentVal === "") dBtn.classList.add('hidden'); else dBtn.classList.remove('hidden');
+            tempBase64Image = null; document.getElementById('image-preview-container').classList.add('hidden');
+            if (type === "text") { tF.classList.remove('hidden'); tF.value = currentVal; tF.placeholder = placeholder; }
+            else { aF.classList.remove('hidden'); aF.value = currentVal; aF.placeholder = placeholder; }
+            if (hasImage) iA.classList.remove('hidden');
+            document.getElementById('input-modal-action').onclick = () => { onAction(type === "text" ? tF.value : aF.value); window.closeInputModal(); };
+            document.getElementById('input-modal').classList.remove('hidden');
+        };
+
+        window.closeInputModal = function() { document.getElementById('input-modal').classList.add('hidden'); };
+
+        window.saveEditedInfo = function() { customInfo = customInfo.map((t) => ({ ...t, desc: document.getElementById(`edit-desc-${t.id}`)?.value || t.desc })); window.persistAll(); window.toggleEditInfo(); };
+        window.setBaseFilter = function(id) { selectedBaseFilter = id; window.renderRecords(); };
+        window.backToGroups = function() { selectedBaseFilter = null; window.renderRecords(); };
+        window.openFolder = function(id) { currentFolderId = id; window.renderTraining(); };
+        window.backToFolders = function() { currentFolderId = null; window.renderTraining(); };
+
+        window.switchTab = function(id) {
+            document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+            const target = document.getElementById(`section-${id}`); if (target) target.classList.remove('hidden');
+            document.querySelectorAll('nav button').forEach(b => { b.classList.remove('tab-active'); b.classList.add('text-slate-400'); });
+            const tabBtn = document.getElementById(`tab-${id}`); if (tabBtn) { tabBtn.classList.add('tab-active'); tabBtn.classList.remove('text-slate-400'); }
+            if (id === 'entry') { window.resetForm(); }
+            if (id === 'records') { selectedBaseFilter = null; window.renderRecords(); }
+            if (id === 'training') { currentFolderId = null; window.renderTraining(); }
+            document.getElementById('scroll-container').scrollTop = 0;
+        };
+
+        window.showDetail = function(id) {
+            const data = records.find(r => r.id === id); if (!data) return;
+            currentEditingId = id;
+            document.getElementById('ai-report-menu').classList.add('hidden');
+            const adviceBtn = document.getElementById('ai-advice-btn');
+            adviceBtn.classList.remove('hidden');
+            document.getElementById('ai-btn-text').innerText = "✨ 深層レポートを生成";
+            const b = DEFAULT_TYPES_DATA.find(t => t.id === data.base);
+            document.getElementById('modal-header').style.backgroundColor = (b ? b.color : '#64748b');
+            document.getElementById('modal-user-name').innerText = data.name;
+            document.getElementById('modal-base-val').innerText = (b ? b.name : '未設定');
+            const ph = DEFAULT_TYPES_DATA.find(t => t.id === data.phase);
+            document.getElementById('modal-phase-val').innerText = (ph ? ph.name : '未設定');
+            document.getElementById('detail-modal').classList.remove('hidden');
+            if (data.aiAdvice) window.displaySavedAIAdvice(data.aiAdvice);
+            window.renderIndividualMemos();
+            const condo = [...DEFAULT_TYPES_DATA.filter(t => t.id !== data.base).sort((a,b) => (data.scores[a.id]||0)-(data.scores[b.id]||0)).map(t=>t.id), data.base];
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(document.getElementById('resultChart').getContext('2d'), {
+                type: 'bar', data: { labels: condo.map(tid => DEFAULT_TYPES_DATA.find(t => t.id === tid).name), datasets: [{ data: condo.map(tid => data.scores[tid]||0), backgroundColor: condo.map(tid => DEFAULT_TYPES_DATA.find(t => t.id === tid).color), borderRadius: 16, barThickness: 24 }] },
+                options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { min: 0, max: 100, display: false }, y: { grid: { display: false }, ticks: { font: { size: 12, weight: '900' }, color: '#64748b' } } } }
+            });
+        };
+
+        window.editCurrentRecord = function() {
+            const d = records.find(r => r.id === currentEditingId); if (!d) return;
+            window.switchTab('entry'); window.toggleEntryMode('manual');
+            document.getElementById('user-name').value = d.name;
+            DEFAULT_TYPES_DATA.forEach(t => { const i = document.getElementById(`manual-val-${t.id}`); if (i) i.value = d.scores[t.id]; });
+            document.getElementById('manual-base').value = d.base; document.getElementById('manual-phase').value = d.phase;
+            window.closeModal();
+        };
+
+        window.updateProgress = function() {
+            const c = document.querySelectorAll('input[type="radio"]:checked').length;
+            const countEl = document.getElementById('answered-count');
+            const progressEl = document.getElementById('progress-bar');
+            if (countEl) countEl.innerText = c; if (progressEl) progressEl.style.width = `${(c / 60) * 100}%`;
+            for(let i=0; i<60; i++) {
+                const card = document.getElementById(`q-card-${i}`);
+                if (card) {
+                    if (document.querySelector(`input[name="q-${i}"]:checked`)) card.classList.add('answered');
+                    else card.classList.remove('answered');
+                }
+            }
+        };
+
+        window.resetForm = function() { 
+            currentEditingId = null; document.getElementById('user-name').value = ''; 
+            document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false); 
+            DEFAULT_TYPES_DATA.forEach(t => { const i = document.getElementById(`manual-val-${t.id}`); if (i) i.value = "0"; });
+            window.updateProgress(); 
+        };
+
+        window.onload = function() {
+            window.renderQuestions(); window.renderManualInputs(); window.renderBaseTypeGrid(); window.renderTypesInfo(); window.renderRecords(); window.renderTraining();
+            customInfo.forEach(t => window.toggleDetails(t.id));
+        };
+    </script>
+</body>
+</html>
